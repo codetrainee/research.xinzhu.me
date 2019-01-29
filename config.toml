@@ -1,0 +1,38 @@
+baseurl = "https://zhu.netlify.com/research/"
+languageCode = "en"
+title = "Codetrainee"
+copyright = "© All rights reserved"
+paginate = 3
+publishDir= "public"
+
+googleAnalytics = "Yout Google Analytics ID"
+
+theme = "minimage"
+
+[permalinks]
+  post = "/:year-:month-:slug/"
+  
+[params]
+  description = "Research blogs"
+  author = "Codetrainee"
+
+[taxonomies]
+  category = "categories"
+  tag = "tags"
+
+[[menu.global]]
+    name = "Research"
+    url = "/categories/Research/"
+
+[[menu.global]]
+    name = "Coding"
+    url = "/categories/Coding/"
+
+[[menu.footer]]
+    name = "About"
+    url = "/page/about/"
+
+[sitemap]
+  changefreq = "monthly"
+  priority = 0.5
+  filename = "sitemap.xml"
