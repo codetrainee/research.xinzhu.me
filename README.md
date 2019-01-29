@@ -8,4 +8,4 @@ Codetrainee
 
 ## Blog website
 
-https://zhu.netlify.com/research/
+Site is hosted on [Netlify](https://research.xinzhu.me).
