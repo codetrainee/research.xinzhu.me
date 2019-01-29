@@ -1,0 +1,5 @@
+[[redirects]]
+  from = "https://zhu-research.netlify.com/*"
+  to = "https://research.xinzhu.me/:splat"
+  status = 301
+  force = true
