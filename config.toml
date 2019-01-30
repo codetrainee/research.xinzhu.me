@@ -15,6 +15,7 @@ theme = "minimage"
 [params]
   description = "Research blogs"
   author = "Codetrainee"
+  faviconfile = "img/research.ico"               # from static/
 
 [taxonomies]
   category = "categories"

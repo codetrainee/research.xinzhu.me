@@ -20,4 +20,14 @@
   {{ template "_internal/schema.html" . }}
   <link href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/5.0.0/sanitize.min.css" rel="stylesheet">
   <link href="{{ "css/application.css" | absURL }}" rel="stylesheet">
+
+    <!-- Icon -->
+  <link rel="shortcut icon"
+  {{ if .Site.Params.faviconfile }}
+     href="/{{ .Site.Params.faviconfile }}"
+  {{ else if.Site.Params.avatar}}
+     href="/{{ .Site.Params.avatar }}"
+  {{ end }}
+  >
+
 </head>
