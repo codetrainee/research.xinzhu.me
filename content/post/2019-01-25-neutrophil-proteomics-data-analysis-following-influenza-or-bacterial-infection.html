@@ -25,7 +25,7 @@ output:
 <li><a href="#visualization-of-pick-up-proteins-in-independent-experiments-and-biological-replicates">Visualization of pick-up proteins in independent experiments and biological replicates</a></li>
 <li><a href="#overall-impression-of-proteome-dataset">Overall impression of proteome dataset</a></li>
 <li><a href="#analysis-of-proteins-with-significant-abundance-changes">Analysis of proteins with significant abundance changes</a></li>
-<li><a href="#intensity-ranking">Intensity ranking</a></li>
+<li><a href="#ibaq-intensity-ranking">iBAQ intensity ranking</a></li>
 </ul></li>
 <li><a href="#analysis-of-bal-neutrophil-proteome-changes-following-different-doses-of-influenza-infection-or-bacterial-infection">Analysis of BAL neutrophil proteome changes following different doses of influenza infection or bacterial infection</a><ul>
 <li><a href="#raw-data-cleaning-1">Raw data cleaning</a></li>
@@ -710,7 +710,7 @@ plot_grid(plotlist = volcano_g[c(1, 2, 4, 3, 5)], nrow = 2)</code></pre>
 <pre class="r"><code>## as of 16 Oct 2018
 all_stat_pathway &lt;-
   all_stat %&gt;%
-  as.tibble() %&gt;%
+  as_tibble() %&gt;%
   dplyr::filter(Sig_diff == TRUE &amp; !(abs(c_mean) &gt;= 1 &amp; c_p_value &lt; 0.05)) %&gt;%
   dplyr::select(Gene_names, A_mean, A_p_value, C_mean, C_p_value, b_mean, b_p_value) %&gt;%
   mutate(`1000_pfu_PR8_BAL_vs_1000_pfu_PR8_Blood_direction` = ifelse(A_mean &lt; -1 &amp; A_p_value &lt; 0.05, &quot;down&quot;, ifelse(A_mean &gt; 1 &amp; A_p_value &lt; 0.05, &quot;up&quot;, &quot;ns&quot;)),
@@ -815,7 +815,7 @@ g_pathway_exclue_Blood</code></pre>
   geom_scatterpie(aes(x = c_x + 1, y = p_y, r = radius), color = &quot;transparent&quot;, cols = c(&quot;Down_no&quot;, &quot;Up_no&quot;, &quot;Database_extra_no&quot;), data = Pathway_all_Blood) +
   scale_y_continuous(limits = c(-2, 40), breaks = seq(1, 39, 1), labels = unique(Pathway_all_Blood$Pathway) %&gt;% sort(decreasing = T))  +
   scale_x_continuous(labels = c(&quot;&quot;,
-                                &quot;1000 pfu PR8 Blood vs 1000 pfu PR8_BM&quot;,
+                                &quot;1000 pfu PR8 Blood vs 1000 pfu PR8 BM&quot;,
                                 &quot;&quot;
                                 ),
                      limits = c(0.5, 3.5),
@@ -858,8 +858,8 @@ g_pathway_Blood</code></pre>
 g_alluvial</code></pre>
 <p><img src="/post/2019-01-25-neutrophil-proteomics-data-analysis-following-influenza-or-bacterial-infection_files/figure-html/ggalluvial-1.svg" width="576" style="display: block; margin: auto;" /></p>
 </div>
-<div id="intensity-ranking" class="section level3">
-<h3>Intensity ranking</h3>
+<div id="ibaq-intensity-ranking" class="section level3">
+<h3>iBAQ intensity ranking</h3>
 <p>The intensity data were extracted from iBAQ values and only the proteins identified in both experiments were used.</p>
 <pre class="r"><code>## customise a function to convert `0` to `NA` that is compatible with our previous defined function.
 is_zero &lt;- function(x) { ifelse(x == 0, TRUE, FALSE)}
@@ -989,8 +989,9 @@ geom_ranking &lt;- function(df) {
                          y = 0,
                          yend = y_max,),
                      linetype = &quot;dashed&quot;) +
-        scale_x_continuous(breaks = c(seq(0, 40, 10), x_max),
-                           labels = c(seq(0, 40, 10), x_max),
+        scale_x_continuous(limits = c(0, 80),
+                           breaks = c(seq(0, 40, 10), x_max, 80),
+                           labels = c(seq(0, 40, 10), x_max, 80),
                          expand = expand_scale(mult = c(0, 0.01),
                                                add = c(0, 0))) +
         scale_y_continuous(breaks = seq(0, 0.80, 0.1),
@@ -1031,7 +1032,7 @@ cowplot::plot_grid(plotlist = ranking_plot,
                       y = 0.5,
                       vjust = 1.5,
                       angle = 90)</code></pre>
-<p><img src="/post/2019-01-25-neutrophil-proteomics-data-analysis-following-influenza-or-bacterial-infection_files/figure-html/visualised-intensity-ranking-1.svg" width="1152" style="display: block; margin: auto;" /></p>
+<p><img src="/post/2019-01-25-neutrophil-proteomics-data-analysis-following-influenza-or-bacterial-infection_files/figure-html/visualised-intensity-ranking-1.svg" width="1536" style="display: block; margin: auto;" /></p>
 </div>
 </div>
 <div id="analysis-of-bal-neutrophil-proteome-changes-following-different-doses-of-influenza-infection-or-bacterial-infection" class="section level2">

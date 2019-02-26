@@ -659,7 +659,7 @@ We are also interested in the pathways these proteins involved. Therefore, we fi
 ## as of 16 Oct 2018
 all_stat_pathway <-
   all_stat %>%
-  as.tibble() %>%
+  as_tibble() %>%
   dplyr::filter(Sig_diff == TRUE & !(abs(c_mean) >= 1 & c_p_value < 0.05)) %>%
   dplyr::select(Gene_names, A_mean, A_p_value, C_mean, C_p_value, b_mean, b_p_value) %>%
   mutate(`1000_pfu_PR8_BAL_vs_1000_pfu_PR8_Blood_direction` = ifelse(A_mean < -1 & A_p_value < 0.05, "down", ifelse(A_mean > 1 & A_p_value < 0.05, "up", "ns")),
@@ -775,7 +775,7 @@ g_pathway_Blood <-
   geom_scatterpie(aes(x = c_x + 1, y = p_y, r = radius), color = "transparent", cols = c("Down_no", "Up_no", "Database_extra_no"), data = Pathway_all_Blood) +
   scale_y_continuous(limits = c(-2, 40), breaks = seq(1, 39, 1), labels = unique(Pathway_all_Blood$Pathway) %>% sort(decreasing = T))  +
   scale_x_continuous(labels = c("",
-                                "1000 pfu PR8 Blood vs 1000 pfu PR8_BM",
+                                "1000 pfu PR8 Blood vs 1000 pfu PR8 BM",
                                 ""
                                 ),
                      limits = c(0.5, 3.5),
@@ -821,7 +821,7 @@ g_alluvial <-
 g_alluvial
 ```
 
-### Intensity ranking
+### iBAQ intensity ranking
 
 The intensity data were extracted from iBAQ values and only the proteins identified in both experiments were used.
 
@@ -957,8 +957,9 @@ geom_ranking <- function(df) {
                          y = 0,
                          yend = y_max,),
                      linetype = "dashed") +
-        scale_x_continuous(breaks = c(seq(0, 40, 10), x_max),
-                           labels = c(seq(0, 40, 10), x_max),
+        scale_x_continuous(limits = c(0, 80),
+                           breaks = c(seq(0, 40, 10), x_max, 80),
+                           labels = c(seq(0, 40, 10), x_max, 80),
                          expand = expand_scale(mult = c(0, 0.01),
                                                add = c(0, 0))) +
         scale_y_continuous(breaks = seq(0, 0.80, 0.1),
@@ -982,7 +983,7 @@ geom_ranking <- function(df) {
 }
 ```
 
-```{r visualised-intensity-ranking, fig.dim=c(12, 16)}
+```{r visualised-intensity-ranking, fig.dim=c(16, 20)}
 ranking_plot <-
   purrr::map(
     data_intensity$group %>% unique() %>% stringr::str_sort(),
