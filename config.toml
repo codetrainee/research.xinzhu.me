@@ -15,7 +15,8 @@ theme = "minimage"
 [params]
   description = "Research blogs"
   author = "Codetrainee"
-  faviconfile = "img/research.ico"               # from static/
+  faviconfile = "img/research.ico"   
+  customCSS = ["css/monokai-sublime.css", "css/custom.css"]            # from static/
 
 [taxonomies]
   category = "categories"

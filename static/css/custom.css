@@ -1,0 +1,13 @@
+table {
+  position: relative;
+  margin: 0 auto;
+}
+
+tr.header, tr.even {
+  background: #f0f0f0;
+}
+
+th, td {
+  text-align: left;
+  border: 1px solid;
+}
