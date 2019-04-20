@@ -185,8 +185,6 @@ data_nov <-
   mutate_at(vars(contains("invert")), funs(1 / .)) %>%
   ## Remove introduced the `invert` in the column names.
   magrittr::set_colnames(sapply(colnames(.), function(x) str_replace(x, "_invert", ""))) %>%
-  ## log transformation
-  mutate_at(vars(-Gene_names), funs(log2(.))) %>%
   ## converted to data.table for filter.
   as.data.table()
 
@@ -223,7 +221,6 @@ data_dec <-
   distinct(Gene_names, .keep_all = TRUE) %>%
   mutate_at(vars(contains("invert")), funs(1 / .)) %>%
   magrittr::set_colnames(sapply(colnames(.), function(x) str_replace(x, "_invert", ""))) %>%
-  mutate_at(vars(-Gene_names), funs(log2(.))) %>%
   as.data.table()
 
 for (i in valid_list) {
@@ -244,12 +241,22 @@ Proteins detected in both experiments were kept and statistics tests were applie
 all_stat <-
   ## combine two experiments
   inner_join(data_nov_stat, data_dec_stat) %>%
-  ## Remove the comparison between 1000 PFU PR8 BM and PBS Blood. The ideal comparison should be 1000 PFU PR8 Blood
-  ## vs PBS Blood. Due to the technique limitations, we can't achieve the goal.
-  dplyr::select(-matches("1000_PFU_PR8_BM_vs_PBS_Blood")) %>%
   as.data.table()
 
-sig_list <- c("A", "B", "C", "b", "c")
+## Indirect way to compute the ratio in terms of comparison between 1000 pfu PR8 Blood and PBS Blood. 
+for (i in c("1", "2", "3")) {
+  all_stat[,
+           `:=`(sprintf("X_1000_PFU_PR8_Blood_vs_PBS_Blood_%s", i),
+                prod(.SD)),
+           by = Gene_names,
+           .SDcols = names(all_stat) %like% sprintf("C_1000_PFU_PR8_Blood_vs_1000_PFU_PR8_BM_%s|a_1000_PFU_PR8_BM_vs_PBS_Blood_%s", i, i)
+           ]
+}
+
+for (j in names(all_stat)[str_detect(names(all_stat), "^[ABCabcX].+_[123]$")]) set(all_stat, j = j, value = log2(all_stat[[j]]))
+
+
+sig_list <- c("A", "B", "C", "b", "c", "X")
 
 for (i in sig_list) {
   all_stat[,
@@ -259,10 +266,23 @@ for (i in sig_list) {
            .SDcols = names(all_stat) %like% sprintf("^%s.+[0-9]$", i)]
 }
 
-all_stat <-
-  all_stat %>%
-  ## The proteins with fold change > 2 and p value < 0.05 were selected.
-  mutate(Sig_diff = (A_p_value < 0.05 & abs(A_mean) > 1) | (B_p_value < 0.05 & abs(B_mean) > 1) | (C_p_value < 0.05 & abs(C_mean) > 1) | (b_p_value < 0.05 & abs(b_mean) > 1) | (c_p_value < 0.05 & abs(c_mean) > 1))
+all_stat <- map_df(sig_list, ~mutate(all_stat, !!sym(sprintf("%s_sig", .x)) := !!sym(sprintf("%s_p_value", .x)) < 0.05 & abs(!!sym(sprintf("%s_mean", .x))) > 1)) %>% 
+  gather(sig, value, matches("_sig$")) %>% 
+  drop_na() %>% 
+  spread(sig, value) %>% 
+  dplyr::select(Gene_names, everything()) %>% 
+  dplyr::select(-matches("1000_PFU_PR8_BM_vs_PBS_Blood"))
+
+## Comparison between 1000 pfu PR8 Blood and PBS Blood was included. 
+all_stat_with_flu_blood_vs_pbs_blood <- 
+  all_stat %>% 
+  mutate(Sig_diff = rowSums(dplyr::select(., matches("_sig$"))))
+
+## Exclude the comparsion between 1000 pfu PR8 Blood and PBS Blood.
+all_stat <- 
+  all_stat %>% 
+  dplyr::select(-matches("^X_")) %>% 
+  mutate(Sig_diff = rowSums(dplyr::select(., matches("_sig$"))))
 ```
 
 ### Visualization of pick-up proteins in independent experiments and biological replicates
@@ -336,7 +356,45 @@ lay_grid(list(data_nov_replicate, data_dec_replicate, all_replicate), Venn_cl)
 
 ### Overall impression of proteome dataset
 
-To examine their protein abundance pattern similarity, PCA analysis was conducted.
+To examine their protein abundance pattern similarity, PCA analysis was conducted. The comparison between 1000 pfu PR8 Blood vs PBS Blood was included.
+
+```{r PCA-analysis-with-flu-blood-vs-pbs-blood, fig.keep="all", fig.dim=c(8, 8)}
+set.seed(123)
+all_stat_pca <-
+  all_stat_with_flu_blood_vs_pbs_blood %>%
+  dplyr::select(matches("_vs_")) %>%
+  as.matrix() %>%
+  prcomp(.)
+
+## PCA results QC
+fviz_eig(all_stat_pca)
+
+## caculate the variances explained by each principle component
+all_stat_pca_pov <- all_stat_pca$sdev^2 / sum(all_stat_pca$sdev^2)
+
+## extract the dataframe from PCA analysis
+all_stat_pca_df <- all_stat_pca$rotation %>%
+  as.data.frame() %>%
+  mutate(Sample = row.names(.),
+         Comparison = str_replace_all(str_extract(Sample, "(?<=[A-Za-z]{1}_).+(?=_[0-9]{1})"), "_", " "),          batch = str_extract(Sample, "[0-9]{1}$"))
+
+## visualise the PCA using ggplot2
+ggplot(all_stat_pca_df, aes(PC1, PC2, colour = Comparison)) +
+  geom_point(size = 4) +
+  labs(
+    x = sprintf("PC1: %.2f %% Variance", all_stat_pca_pov[[1]] * 100),
+    y = sprintf("PC2: %.2f %% Variance", all_stat_pca_pov[[2]] * 100)
+  ) +
+  scale_colour_manual(values = brewer.pal(6, "RdBu")) +
+  theme_classic() +
+  theme(aspect.ratio = 1,
+        legend.position = "bottom",
+        panel.border = element_rect(fill = "transparent"),
+        legend.direction = "vertical"
+        )
+```
+
+To examine their protein abundance pattern similarity, PCA analysis was conducted. The comparison between 1000 pfu PR8 Blood vs PBS Blood was excluded.
 
 ```{r PCA-analysis, fig.keep="all", fig.dim=c(8, 8)}
 set.seed(123)
@@ -365,7 +423,7 @@ ggplot(all_stat_pca_df, aes(PC1, PC2, colour = Comparison)) +
     x = sprintf("PC1: %.2f %% Variance", all_stat_pca_pov[[1]] * 100),
     y = sprintf("PC2: %.2f %% Variance", all_stat_pca_pov[[2]] * 100)
   ) +
-  scale_colour_manual(values = brewer.pal(6, "RdBu")[1:5]) +
+  scale_colour_manual(values = brewer.pal(6, "RdBu")) +
   theme_classic() +
   theme(aspect.ratio = 1,
         legend.position = "bottom",
@@ -457,7 +515,7 @@ all_stat_gene_ENTREZID <- mapIds(org.Mm.eg.db,
                                  multiVals = "first") %>% na.omit
 
 ## gene list was searched against DAVID database https://david.ncifcrf.gov
-david_gene <- readr::read_tsv("https://david.ncifcrf.gov/data/download/chart_94533FFDBC301547014607513.txt")
+david_gene <- readr::read_tsv(glue(path, "all-stat-gene-DAVID-database-GO-cell-compartment.txt"))
 
 ## save it locally
 ## write_tsv(david_gene, glue(path, "all-stat-gene-DAVID-database-GO-cell-compartment.txt"))
@@ -484,10 +542,9 @@ We moved to investigate the proteins with different abundance in at least one co
 
 ```{r potential-cluster-number, fig.dim=c(6, 6)}
 ## Annotation is same with heatmap for all proteins
-
 sig_stat_heatmap_df <-
   all_stat %>%
-  filter(Sig_diff == TRUE) %>%
+  filter(Sig_diff > 0) %>%
   dplyr::select(matches("Gene|_vs_")) %>%
   `colnames<-`(sapply(colnames(.), function(x) str_replace(x, "^[A-Za-z]{1}_", ""))) %>%
   `colnames<-`(sapply(colnames(.), function(x) str_replace_all(x, "_", " ")))
@@ -502,6 +559,7 @@ fviz_nbclust(sig_stat_heatmap_df %>% dplyr::select(-matches("Gene")),
 The heatmap was generated with 9 clusters.
 
 ```{r, heatmap-for-signifant, fig.dim=c(6, 15)}
+set.seed(123)
 sig_stat_heatmap_df <-
   sig_stat_heatmap_df %>%
   mutate(cluster = kmeans(sig_stat_heatmap_df %>% dplyr::select(-matches("Gene")), 9)$cluster)
@@ -509,9 +567,10 @@ sig_stat_heatmap_df <-
 sig_stat_heatmap_matrix <-
   sig_stat_heatmap_df %>%
   as.matrix() %>%
-  `rownames<-`(.[, "Gene names"]) %>%
+  `rownames<-`(.[, "Gene names"] %>% toupper) %>%
   .[, !colnames(.) %in% c("Gene names")] %>%
   `class<-`("numeric")
+
 
 sig_stat_heatmap_ha_row <-
   rowAnnotation(
@@ -530,23 +589,23 @@ sig_stat_heatmap_ha_row <-
     )
   )
 
-set.seed(123)
 sig_stat_heatmap <-
   Heatmap(sig_stat_heatmap_matrix[, !colnames(sig_stat_heatmap_matrix) %in% c("cluster")],
-    top_annotation = all_stat_heatmap_ha,
-    heatmap_legend_param = list(
-      title = "Log2 Fold Change",
-      title_gp = gpar(fontsize = 8),
-      labels_gp = gpar(fontsize = 6),
-      legend_direction = "horizontal",
-      legend_width = unit(1.5, "inch")
-    ),
-    show_column_names = FALSE,
-    show_row_dend = FALSE,
-    combined_name_fun = NULL,
-    row_names_gp = gpar(fontsize = 6),
-    split = sig_stat_heatmap_matrix[, "cluster"],
-    gap = unit(1.5, "mm")
+          top_annotation = all_stat_heatmap_ha,
+          heatmap_legend_param = list(
+            title = "Log2 Fold Change",
+            title_gp = gpar(fontsize = 8),
+            labels_gp = gpar(fontsize = 6),
+            legend_direction = "horizontal",
+            legend_width = unit(1.5, "inch")
+          ),
+          show_column_names = FALSE,
+          show_row_dend = FALSE,
+          show_row_names = TRUE,
+          row_names_gp = gpar(fontsize = 6),
+          combined_name_fun = NULL,
+          split = sig_stat_heatmap_matrix[, "cluster"],
+          gap = unit(1.5, "mm")
   )
 
 draw(sig_stat_heatmap_ha_row + sig_stat_heatmap, heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
@@ -555,11 +614,11 @@ for (an in colnames(all_stat_heatmap_ha_df)) {
   decorate_annotation(an, {
     ## annotation names on the left
     grid.text(an,
-      unit(1, "npc") + unit(2, "mm"),
-      0.6,
-      default.units = "npc",
-      just = "left",
-      gp = gpar(fontsize = 8)
+              unit(1, "npc") + unit(2, "mm"),
+              0.6,
+              default.units = "npc",
+              just = "left",
+              gp = gpar(fontsize = 8)
     )
   })
 }
@@ -568,8 +627,8 @@ for (an in colnames(all_stat_heatmap_ha_df)) {
 All analyses above were only about all proteins from different comparison group. To identify proteins in each comparison group, we visualized data with volcano plots. The dataset was first cleaned for the subsequent visualization.
 
 ```{r volcano-plot-data-cleaning}
-all_stat_volcano <- all_stat %>% as.data.table()
-Comparison_list <- c("A", "B", "C", "b", "c")
+all_stat_volcano <- all_stat_with_flu_blood_vs_pbs_blood %>% as.data.table()
+Comparison_list <- c("A", "B", "C", "b", "c", "X")
 for (i in seq_along(Comparison_list)) {
   logical_p <- paste0(Comparison_list[i], "_p_value")
   logical_mean <- paste0(Comparison_list[i], "_mean")
@@ -644,13 +703,67 @@ geom_volcano <- function(data = data, type = type, gene = gene_list)
 The volcano plots were shown below.
 
 ```{r volcano-plot-list, fig.dim=c(15, 10)}
-gene_list <- c("Oas3", "Isg15", "Ifi204", "Ifit1", "Gbp2", "Gbp7", "Cmpk2", "Ddx58", "Gvin1", "Selenbp1;Selenbp2", "Rnf213", "Lgals9", "Dtx3l", "Fth1", "Il1rn", "Mmp9", "Mmp8", "Lrg1", "F5", "Retnlg", "Ltf", "Il1f9;Il36g", "Lcn2", "Mcm2", "Dnmt1",  "Lig1", "Btf3")
+gene_list <- c(
+  "Oas3",
+  "Isg15",
+  "Ifi204",
+  "Ifit1",
+  "Gbp2",
+  "Gbp7",
+  "Cmpk2",
+  "Ddx58",
+  "Gvin1",
+  "Selenbp1;Selenbp2",
+  "Rnf213",
+  "Lgals9",
+  "Dtx3l",
+  "Fth1",
+  "Il1rn",
+  "Mmp9",
+  "Mmp8",
+  "Lrg1",
+  "F5",
+  "Retnlg",
+  "Ltf",
+  "Il1f9;Il36g",
+  "Lcn2",
+  "Mcm2",
+  "Dnmt1",
+  "Lig1",
+  "Btf3",
+  "Abt1",
+  "Actbl2",
+  "haemaglobin alpha 2;Hba",
+  "Thbs1",
+  "Tubb1",
+  "Tpm4",
+  "Phospho1",
+  "Srgn",
+  "Stfa2l1;Stfa2",
+  "Asprv1",
+  "Ftl1;Ftl2",
+  "H2-K1",
+  "Slfn1",
+  "Por",
+  "Plek",
+  "Pcna",
+  "Cebpe",
+  "Ckap4",
+  "Asns",
+  "Top2a",
+  "Rrm1",
+  "Mcmbp",
+  "Crispld2",
+  "Sorl1",
+  "Timp2",
+  "Olfm4"
+)
 
-volcano_g <- lapply(c("A", "B", "C", "b", "c"), function(x) geom_volcano(data = all_stat_volcano,
+volcano_g <- lapply(c("A", "B", "C", "b", "c", "X"), function(x) geom_volcano(data = all_stat_volcano,
                                                                          type = x,
                                                                          gene = gene_list))
 
-plot_grid(plotlist = volcano_g[c(1, 2, 4, 3, 5)], nrow = 2)
+plot_grid(plotlist = volcano_g[c(1, 2, 4, 3, 5, 6)], nrow = 2)
 ```
 
 We are also interested in the pathways these proteins involved. Therefore, we filtered the proteins and annotated them as down or up. They were used to search the Reactome database respectively and retrieved the pathway data for visualization.
@@ -1229,3 +1342,48 @@ for (an in colnames(data_201712_heatmap_ha_df)) {
   })
 }
 ```
+
+```
+R version 3.5.3 (2019-03-11)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 18.04.2 LTS
+
+Matrix products: default
+BLAS: /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.7.1
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.7.1
+
+locale:
+ [1] LC_CTYPE=C.UTF-8       LC_NUMERIC=C           LC_TIME=C.UTF-8        LC_COLLATE=C.UTF-8    
+ [5] LC_MONETARY=C.UTF-8    LC_MESSAGES=C.UTF-8    LC_PAPER=C.UTF-8       LC_NAME=C             
+ [9] LC_ADDRESS=C           LC_TELEPHONE=C         LC_MEASUREMENT=C.UTF-8 LC_IDENTIFICATION=C   
+
+attached base packages:
+ [1] parallel  stats4    grid      stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] scatterpie_0.1.2      ggthemr_1.1.0         org.Mm.eg.db_3.7.0    AnnotationDbi_1.44.0 
+ [5] IRanges_2.16.0        S4Vectors_0.20.1      Biobase_2.42.0        BiocGenerics_0.28.0  
+ [9] customLayout_0.3.0    glue_1.3.1            ggalluvial_0.9.1      RColorBrewer_1.1-2   
+[13] egg_0.4.2             cowplot_0.9.4         data.table_1.12.2     factoextra_1.0.5     
+[17] gridExtra_2.3         ComplexHeatmap_1.20.0 eulerr_5.1.0          ggthemes_4.1.1       
+[21] ggrepel_0.8.0.9000    magrittr_1.5          forcats_0.4.0         stringr_1.4.0        
+[25] dplyr_0.8.0.1         purrr_0.3.2           readr_1.3.1           tidyr_0.8.3.9000     
+[29] tibble_2.1.1          ggplot2_3.1.1         tidyverse_1.2.1      
+
+loaded via a namespace (and not attached):
+ [1] nlme_3.1-139        lubridate_1.7.4     bit64_0.9-7         httr_1.4.0          tools_3.5.3        
+ [6] backports_1.1.4     R6_2.4.0            DBI_1.0.0           lazyeval_0.2.2      colorspace_1.4-1   
+[11] GetoptLong_0.1.7    withr_2.1.2         tidyselect_0.2.5    bit_1.1-14          compiler_3.5.3     
+[16] cli_1.1.0           rvest_0.3.3         pacman_0.5.1        xml2_1.2.0          labeling_0.3       
+[21] bookdown_0.9.2      scales_1.0.0        digest_0.6.18       rmarkdown_1.12.6    pkgconfig_2.0.2    
+[26] htmltools_0.3.6     rlang_0.3.4         GlobalOptions_0.1.0 readxl_1.3.1        rstudioapi_0.10    
+[31] RSQLite_2.1.1       farver_1.1.0        shape_1.4.4         generics_0.0.2      jsonlite_1.6       
+[36] Rcpp_1.0.1          munsell_0.5.0       stringi_1.4.3       yaml_2.2.0          MASS_7.3-51.3      
+[41] plyr_1.8.4          blob_1.1.1          crayon_1.3.4        lattice_0.20-38     haven_2.1.0        
+[46] circlize_0.4.6      hms_0.4.2           polylabelr_0.1.0    zeallot_0.1.0       knitr_1.22         
+[51] pillar_1.3.1        ggpubr_0.2          rjson_0.2.20        evaluate_0.13       blogdown_0.11      
+[56] modelr_0.1.4        tweenr_1.0.1        vctrs_0.1.0.9002    cellranger_1.1.0    polyclip_1.10-0    
+[61] gtable_0.3.0        assertthat_0.2.1    xfun_0.6            ggforce_0.2.1       broom_0.5.2        
+[66] rvcheck_0.1.3       memoise_1.1.0       ellipsis_0.1.0 
+```
+
