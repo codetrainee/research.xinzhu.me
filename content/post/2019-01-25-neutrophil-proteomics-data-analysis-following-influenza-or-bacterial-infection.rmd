@@ -43,7 +43,8 @@ pacman::p_load(tidyverse,
                org.Mm.eg.db,
                AnnotationDbi,
                ggthemr,
-               scatterpie
+               scatterpie,
+               corrplot
                )
 ```
 
@@ -58,7 +59,8 @@ To have a tidy output, the figures were centered and message and warning was sup
 ```{r global-options-for-knitr}
 knitr::opts_chunk$set(fig.align='center',
                       message=FALSE,
-                      warning=FALSE)
+                      warning=FALSE,
+                      cache=TRUE)
 ```
 
 All data were stored under the below folders and raw datasets can be found in the [Source code and dataset availability](##Source-code-and-dataset-availability)
@@ -243,7 +245,7 @@ all_stat <-
   inner_join(data_nov_stat, data_dec_stat) %>%
   as.data.table()
 
-## Indirect way to compute the ratio in terms of comparison between 1000 pfu PR8 Blood and PBS Blood. 
+## Indirect way to compute the ratio in terms of comparison between 1000 pfu PR8 Blood and PBS Blood.
 for (i in c("1", "2", "3")) {
   all_stat[,
            `:=`(sprintf("X_1000_PFU_PR8_Blood_vs_PBS_Blood_%s", i),
@@ -266,22 +268,22 @@ for (i in sig_list) {
            .SDcols = names(all_stat) %like% sprintf("^%s.+[0-9]$", i)]
 }
 
-all_stat <- map_df(sig_list, ~mutate(all_stat, !!sym(sprintf("%s_sig", .x)) := !!sym(sprintf("%s_p_value", .x)) < 0.05 & abs(!!sym(sprintf("%s_mean", .x))) > 1)) %>% 
-  gather(sig, value, matches("_sig$")) %>% 
-  drop_na() %>% 
-  spread(sig, value) %>% 
-  dplyr::select(Gene_names, everything()) %>% 
+all_stat <- map_df(sig_list, ~mutate(all_stat, !!sym(sprintf("%s_sig", .x)) := !!sym(sprintf("%s_p_value", .x)) < 0.05 & abs(!!sym(sprintf("%s_mean", .x))) > 1)) %>%
+  gather(sig, value, matches("_sig$")) %>%
+  drop_na() %>%
+  spread(sig, value) %>%
+  dplyr::select(Gene_names, everything()) %>%
   dplyr::select(-matches("1000_PFU_PR8_BM_vs_PBS_Blood"))
 
-## Comparison between 1000 pfu PR8 Blood and PBS Blood was included. 
-all_stat_with_flu_blood_vs_pbs_blood <- 
-  all_stat %>% 
+## Comparison between 1000 pfu PR8 Blood and PBS Blood was included.
+all_stat_with_flu_blood_vs_pbs_blood <-
+  all_stat %>%
   mutate(Sig_diff = rowSums(dplyr::select(., matches("_sig$"))))
 
 ## Exclude the comparsion between 1000 pfu PR8 Blood and PBS Blood.
-all_stat <- 
-  all_stat %>% 
-  dplyr::select(-matches("^X_")) %>% 
+all_stat <-
+  all_stat %>%
+  dplyr::select(-matches("^X_")) %>%
   mutate(Sig_diff = rowSums(dplyr::select(., matches("_sig$"))))
 ```
 
@@ -385,13 +387,26 @@ ggplot(all_stat_pca_df, aes(PC1, PC2, colour = Comparison)) +
     x = sprintf("PC1: %.2f %% Variance", all_stat_pca_pov[[1]] * 100),
     y = sprintf("PC2: %.2f %% Variance", all_stat_pca_pov[[2]] * 100)
   ) +
-  scale_colour_manual(values = brewer.pal(6, "RdBu")) +
+  scale_colour_manual(values = brewer.pal(6, "RdBu")[c(1:3, 6, 4, 5)]) +
   theme_classic() +
   theme(aspect.ratio = 1,
         legend.position = "bottom",
         panel.border = element_rect(fill = "transparent"),
         legend.direction = "vertical"
         )
+
+mat <- all_stat_with_flu_blood_vs_pbs_blood %>%
+  dplyr::select(matches("vs")) %>% 
+  as.matrix()
+
+colnames(mat) <- 
+  colnames(mat) %>% 
+  map_chr(~str_replace_all(.x, "_", " ")) %>% 
+  map_chr(~str_replace(.x, "^[ABCabcX]\\s", ""))
+mat_cor <- cor(mat)
+
+
+corrplot::corrplot(mat_cor, method = "ellipse", type = "lower", order = "hclust")
 ```
 
 To examine their protein abundance pattern similarity, PCA analysis was conducted. The comparison between 1000 pfu PR8 Blood vs PBS Blood was excluded.
@@ -638,24 +653,26 @@ for (i in seq_along(Comparison_list)) {
 
 We also customized a function for generating volcano plots.
 
-```{r volcano-plot-function}
+```{r volcano-plot-function, cache=FALSE}
 geom_volcano <- function(data = data, type = type, gene = gene_list)
 {
-  x = paste0(type, "_mean")
-  y = paste0(type, "_p_value")
-  title = str_extract(colnames(data), sprintf("^%s_.+", type)) %>% unique() %>% str_extract(., "(?<=[A-Za-z]_).+(?=_[0-9]$)") %>% str_replace_all(., "_", " ") %>% na.omit()
-  data <- mutate_at(data, vars(y), funs(-log10(.)))
-  x_limits = c(-6, 6)
-  y_limits = c(0, 6)
-  x_breaks = seq(min(x_limits), max(x_limits), 2)
-  y_breaks = seq(min(y_limits), max(y_limits), 1)
+  x = sym(paste0(type, "_mean"))
+  y = sym(paste0(type, "_p_value"))
+  type = sym(type)
+
+  title = str_extract(colnames(data), sprintf("^%s_.+", toString(type))) %>% unique() %>% str_extract(., "(?<=[A-Za-z]_).+(?=_[0-9]$)") %>% str_replace_all(., "_", " ") %>% na.omit()
+  data <- mutate_at(data, vars(!!y), funs(-log10(.)))
+  x_limits <- c(-6, 6)
+  y_limits <- c(0, 6)
+  x_breaks = seq(-6, 6, 2)
+  y_breaks = seq(0, 6, 1)
   point_colour = setNames(c(brewer.pal(11, "RdBu")[2], "gray50", brewer.pal(11, "RdBu")[10]),
                           c("up", "ns", "down"))
-  down_regulated_number = data %>% filter(get(x) <= -1, get(y) > -log10(0.05)) %>%  nrow(.)
-  up_regulated_number = data %>% filter(get(x) >= 1, get(y) > -log10(0.05)) %>%  nrow(.)
+  down_regulated_number = data %>% filter(!!x <= -1, !!y > -log10(0.05)) %>%  nrow(.)
+  up_regulated_number = data %>% filter(!!x >= 1, !!y > -log10(0.05)) %>%  nrow(.)
 
-  ggplot(data, aes_string(x, y)) +
-    geom_point(aes_string(color = type), size = 2) +
+  ggplot(data, aes(!!x, !!y)) +
+    geom_point(aes(color = !!type, name = Gene_names), size = 2) +
     geom_vline(xintercept = c(-1, 1),
                linetype = "dashed",
                color = "gray50",
@@ -664,22 +681,23 @@ geom_volcano <- function(data = data, type = type, gene = gene_list)
                linetype =  "dashed",
                color = "gray50",
                size = 0.25) +
-    geom_text_repel(data = . %>% filter(Gene_names %in% gene,
-                                        get(type) == "down" | get(type) == "up"),
+    geom_text_repel(data =  data %>% filter(Gene_names %in% gene, !!type == "down" | !!type == "up"),
                     aes(label = Gene_names),
-                    size = 4,
-                    segment.size = 0.25,
-                    nudge_y = 0.5
+                    nudge_y      = 7,
+                    direction    = "x",
+                    angle        = 90,
+                    vjust        = 1,
+                    segment.size = 0.2
                     ) +
     annotate("text",
-             x = min(x_limits),
-             y = max(y_limits),
+             x = -Inf,
+             y = 0.1,
              label = paste("Downregulated gene: ", down_regulated_number),
              hjust = 0,
              size = 4) +
     annotate("text",
-             x = max(x_limits),
-             y = max(y_limits),
+             x = Inf,
+             y = 0.1,
              label = paste("Upregulated gene: ", up_regulated_number),
              hjust = 1,
              size = 4) +
@@ -702,7 +720,7 @@ geom_volcano <- function(data = data, type = type, gene = gene_list)
 
 The volcano plots were shown below.
 
-```{r volcano-plot-list, fig.dim=c(15, 10)}
+```{r volcano-plot-list, fig.dim=c(20, 15), cache=FALSE}
 gene_list <- c(
   "Oas3",
   "Isg15",
@@ -866,7 +884,7 @@ g_pathway_exclue_Blood <-
                               ),
                    breaks = c(1, 2, 3)) +
   coord_equal()  +
-  scale_fill_manual(values = c("#000000", "#d7191c", "#2b83ba")) +
+  scale_fill_manual(values = c("#cccccc", "#2c7bb6", "#d7191c")) +
   geom_scatterpie_legend(Pathway_all_exclude_Blood$radius,
                          x = 1,
                          y = -2,
@@ -894,7 +912,7 @@ g_pathway_Blood <-
                      limits = c(0.5, 3.5),
                      breaks = c(1, 2, 3)) +
   coord_equal()  +
-  scale_fill_manual(values = c("#000000", "#d7191c", "#2b83ba")) +
+  scale_fill_manual(values = c("#cccccc", "#2c7bb6", "#d7191c")) +
   geom_scatterpie_legend(Pathway_all_Blood$radius,
                          x = 1,
                          y = -2,
@@ -1343,47 +1361,9 @@ for (an in colnames(data_201712_heatmap_ha_df)) {
 }
 ```
 
-```
-R version 3.5.3 (2019-03-11)
-Platform: x86_64-pc-linux-gnu (64-bit)
-Running under: Ubuntu 18.04.2 LTS
+## State of the machine
 
-Matrix products: default
-BLAS: /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.7.1
-LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.7.1
-
-locale:
- [1] LC_CTYPE=C.UTF-8       LC_NUMERIC=C           LC_TIME=C.UTF-8        LC_COLLATE=C.UTF-8    
- [5] LC_MONETARY=C.UTF-8    LC_MESSAGES=C.UTF-8    LC_PAPER=C.UTF-8       LC_NAME=C             
- [9] LC_ADDRESS=C           LC_TELEPHONE=C         LC_MEASUREMENT=C.UTF-8 LC_IDENTIFICATION=C   
-
-attached base packages:
- [1] parallel  stats4    grid      stats     graphics  grDevices utils     datasets  methods   base     
-
-other attached packages:
- [1] scatterpie_0.1.2      ggthemr_1.1.0         org.Mm.eg.db_3.7.0    AnnotationDbi_1.44.0 
- [5] IRanges_2.16.0        S4Vectors_0.20.1      Biobase_2.42.0        BiocGenerics_0.28.0  
- [9] customLayout_0.3.0    glue_1.3.1            ggalluvial_0.9.1      RColorBrewer_1.1-2   
-[13] egg_0.4.2             cowplot_0.9.4         data.table_1.12.2     factoextra_1.0.5     
-[17] gridExtra_2.3         ComplexHeatmap_1.20.0 eulerr_5.1.0          ggthemes_4.1.1       
-[21] ggrepel_0.8.0.9000    magrittr_1.5          forcats_0.4.0         stringr_1.4.0        
-[25] dplyr_0.8.0.1         purrr_0.3.2           readr_1.3.1           tidyr_0.8.3.9000     
-[29] tibble_2.1.1          ggplot2_3.1.1         tidyverse_1.2.1      
-
-loaded via a namespace (and not attached):
- [1] nlme_3.1-139        lubridate_1.7.4     bit64_0.9-7         httr_1.4.0          tools_3.5.3        
- [6] backports_1.1.4     R6_2.4.0            DBI_1.0.0           lazyeval_0.2.2      colorspace_1.4-1   
-[11] GetoptLong_0.1.7    withr_2.1.2         tidyselect_0.2.5    bit_1.1-14          compiler_3.5.3     
-[16] cli_1.1.0           rvest_0.3.3         pacman_0.5.1        xml2_1.2.0          labeling_0.3       
-[21] bookdown_0.9.2      scales_1.0.0        digest_0.6.18       rmarkdown_1.12.6    pkgconfig_2.0.2    
-[26] htmltools_0.3.6     rlang_0.3.4         GlobalOptions_0.1.0 readxl_1.3.1        rstudioapi_0.10    
-[31] RSQLite_2.1.1       farver_1.1.0        shape_1.4.4         generics_0.0.2      jsonlite_1.6       
-[36] Rcpp_1.0.1          munsell_0.5.0       stringi_1.4.3       yaml_2.2.0          MASS_7.3-51.3      
-[41] plyr_1.8.4          blob_1.1.1          crayon_1.3.4        lattice_0.20-38     haven_2.1.0        
-[46] circlize_0.4.6      hms_0.4.2           polylabelr_0.1.0    zeallot_0.1.0       knitr_1.22         
-[51] pillar_1.3.1        ggpubr_0.2          rjson_0.2.20        evaluate_0.13       blogdown_0.11      
-[56] modelr_0.1.4        tweenr_1.0.1        vctrs_0.1.0.9002    cellranger_1.1.0    polyclip_1.10-0    
-[61] gtable_0.3.0        assertthat_0.2.1    xfun_0.6            ggforce_0.2.1       broom_0.5.2        
-[66] rvcheck_0.1.3       memoise_1.1.0       ellipsis_0.1.0 
+```{r}
+sessionInfo()
 ```
 
