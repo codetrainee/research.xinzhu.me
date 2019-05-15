@@ -21,7 +21,7 @@ Source code is hosted on [github](https://github.com/codetrainee/Neutrophil-syst
 
 ## Prerequisite
 
-We first loaded libraries required for analysis.
+We first loaded libraries required for analysis. Scripts used in the analysis could be found in `data/Rscripts`. Packages and their version are specificed in a plain file as well as listed at the bottom of the page. 
 
 ```{r source-R-scripts, warning=FALSE}
 source("data/Rscripts/load_libraries.R")
@@ -37,11 +37,12 @@ ggthemr("dust")
 To have a tidy output, the figures were centered and message and warning were suppressed by defaults. Code was also hidden for simplicity.
 
 ```{r global-options-for-knitr}
-knitr::opts_chunk$set(fig.align = 'center',
+knitr::opts_chunk$set(fig.align = "center",
                       message   = FALSE,
                       warning   = FALSE,
                       cache     = TRUE,
-                      echo      = FALSE)
+                      echo      = FALSE,
+                      results   = "hide")
 ```
 
 All data were stored under the below folders and can be found in the [Source code and dataset availability](##Source-code-and-dataset-availability)
@@ -180,7 +181,7 @@ all_stat <-
       function(x) {
         colname <- sym(glue("X_1000_PFU_PR8_Blood_vs_PBS_Blood_{x}"))
         grep_string <- glue("C_1000_PFU_PR8_Blood_vs_1000_PFU_PR8_BM_{x}|a_1000_PFU_PR8_BM_vs_PBS_Blood_{x}")
-        subset <- dplyr::select(all_stat, matches(grep_string))
+        subset <- dplyr::select(all_stat, matches(grep_string, ignore.case = FALSE))
 
         mutate(all_stat, 
                !!colname := apply(subset,
@@ -199,7 +200,7 @@ all_stat <-
         p_value <- sym(glue("{x}_p_value"))
         mean_value <- sym(glue("{x}_mean"))
         grep_string <- glue("^{x}.+[0-9]$")
-        subset <- dplyr::select(all_stat, matches(grep_string))
+        subset <- dplyr::select(all_stat, matches(grep_string, ignore.case = FALSE))
         
         mutate(
           all_stat,
@@ -223,12 +224,12 @@ all_stat <-
       }) %>%
   purrr::reduce(left_join) %>% 
   ## remove the comparison between 1000 pfu PR8 BM versus PBS Blood, which makes no sense in the following analysis
-  dplyr::select(-matches("1000_PFU_PR8_BM_vs_PBS_Blood"))
+  dplyr::select(-matches("1000_PFU_PR8_BM_vs_PBS_Blood", ignore.case = FALSE))
 
 ## Comparison between 1000 pfu PR8 Blood and PBS Blood was included.
 all_stat_with_flu_blood_vs_pbs_blood <-
   all_stat %>%
-  mutate(Sig_diff = rowSums(dplyr::select(., matches("_sig$"))))
+  mutate(Sig_diff = rowSums(dplyr::select(., matches("_sig$", ignore.case = FALSE))))
 
 ## Exclude the comparsion between 1000 pfu PR8 Blood and PBS Blood.
 all_stat <-
@@ -653,13 +654,23 @@ for (an in colnames(all_stat_heatmap_ha_df)) {
 All analyses above were only about all proteins from different comparison group. To identify proteins in each comparison group, we visualized data with volcano plots. The dataset was first cleaned for the subsequent visualization and the volcano plots were shown below.
 
 ```{r volcano-plot-data-cleaning}
-all_stat_volcano <- all_stat_with_flu_blood_vs_pbs_blood %>% as.data.table()
 Comparison_list <- c("A", "B", "C", "b", "c", "X")
-for (i in seq_along(Comparison_list)) {
-  logical_p <- paste0(Comparison_list[i], "_p_value")
-  logical_mean <- paste0(Comparison_list[i], "_mean")
-  all_stat_volcano[, Comparison_list[i] := ifelse(get(logical_p) <= 0.05 & get(logical_mean) >= 1, "up", ifelse(get(logical_p) <= 0.05 & get(logical_mean) <= -1, "down", "ns"))]
-}
+all_stat_volcano <- 
+  map(Comparison_list, 
+      function(x) {
+        p_value <- sym(glue("{x}_p_value"))
+        mean_value <- sym(glue("{x}_mean"))
+        colname <- sym(x)
+        
+        mutate(all_stat_with_flu_blood_vs_pbs_blood,
+               !!colname := case_when(
+                 !!p_value < 0.05 & !!mean_value > 1 ~ "up",
+                 !!p_value < 0.05 & !!mean_value < -1 ~ "down",
+                 TRUE ~ "ns"
+               ))
+      }
+      ) %>% 
+  purrr::reduce(left_join)
 ```
 
 ```{r volcano-plot-function, cache=FALSE}
@@ -671,7 +682,7 @@ geom_volcano <- function(data = data, type = type, gene = gene_list)
   type = sym(type)
 
   title = str_extract(colnames(data), sprintf("^%s_.+", toString(type))) %>% unique() %>% str_extract(., "(?<=[A-Za-z]_).+(?=_[0-9]$)") %>% str_replace_all(., "_", " ") %>% na.omit()
-  data <- mutate_at(data, vars(!!y), funs(-log10(.)))
+  data <- mutate_at(data, vars(!!y), list(~-log10(.)))
   x_limits <- c(-6, 6)
   y_limits <- c(0, 6)
   x_breaks = seq(-6, 6, 2)
@@ -682,7 +693,7 @@ geom_volcano <- function(data = data, type = type, gene = gene_list)
   up_regulated_number = data %>% filter(!!x >= 1, !!y > -log10(0.05)) %>%  nrow(.)
 
   ggplot(data, aes(!!x, !!y)) +
-    geom_point(aes(color = !!type, name = Gene_names), size = 2) +
+    geom_point(aes(color = !!type), size = 2) +
     geom_vline(xintercept = c(-1, 1),
                linetype = "dashed",
                color = "gray50",
@@ -1141,27 +1152,27 @@ cowplot::plot_grid(plotlist = ranking_plot,
 
 The above data analysis revealed that neutrophils underwent proteomics profile changes during influenza infection. To investigate whether it is a pathogen specific or a dose-dependent response during infection. We performed another round of proteomics experiment where the design was shown below:
 
-| Labelling  | Sample                                            |
-| :--------- | :------------------------------------------------ |
-| Light (L)  | 100 pfu PR8 BAL neutrophil                        |
-| Medium (M) | 1000 pfu PR8 BAL neutrophil                       |
-| Heavy (H)  | 10^6^ CFU *Pseudomonas Aeruginosa* BAL neutrophil |
+| Labelling  | Sample                                                |
+| :--------- | :-----------------------------------------------------|
+| Light (L)  | 100 pfu PR8 BAL neutrophil                            |
+| Medium (M) | 1000 pfu PR8 BAL neutrophil                           |
+| Heavy (H)  | 3 × 10^6^ CFU *Pseudomonas Aeruginosa* BAL neutrophil |
 
 Table: **Experiment 3 Biological replicate 1**
 
-| Labelling  | Sample                                            |
-| :--------- | :------------------------------------------------ |
-| Light (L)  | 1000 PFU PR8 BAL neutrophil                       |
-| Medium (M) | 10^6^ CFU *Pseudomonas Aeruginosa* BAL neutrophil |
-| Heavy (H)  | 100 pfu PR8 BAL neutrophil                        |
+| Labelling  | Sample                                                |
+| :--------- | :---------------------------------------------------- |
+| Light (L)  | 1000 PFU PR8 BAL neutrophil                           |
+| Medium (M) | 3 × 10^6^ CFU *Pseudomonas Aeruginosa* BAL neutrophil |
+| Heavy (H)  | 100 pfu PR8 BAL neutrophil                            |
 
 Table: **Experiment 3 Biological replicate 2**
 
-| Labelling  | Sample                                            |
-| :--------- | :------------------------------------------------ |
-| Light (L)  | 10^6^ CFU *Pseudomonas Aeruginosa* BAL neutrophil |
-| Medium (M) | 100 PFU PR8 BAL neutrophil                        |
-| Heavy (H)  | 1000 PFU PR8 BAL neutrophil                       |
+| Labelling  | Sample                                                |
+| :--------- | :-----------------------------------------------------|
+| Light (L)  | 3 × 10^6^ CFU *Pseudomonas Aeruginosa* BAL neutrophil |
+| Medium (M) | 100 PFU PR8 BAL neutrophil                            |
+| Heavy (H)  | 1000 PFU PR8 BAL neutrophil                           |
 
 Table: **Experiment 3 Biological replicate 3**
 
@@ -1174,13 +1185,13 @@ data_201712 <-
   dplyr::select(matches("Gene names|normalized Rep")) %>%
   magrittr::set_colnames(c("Gene_names",
                            "A_1000_PFU_PR8_vs_100_PFU_PR8_1",
-                           "B_10^6_CFU_Pseudomonas_vs_1000_PFU_PR8_2",
-                           "C_10^6_CFU_Pseudomonas_vs_100_PFU_PR8_3_invert",
-                           "C_10^6_CFU_Pseudomonas_vs_100_PFU_PR8_1",
+                           "B_3_×_10^6_CFU_Pseudomonas_vs_1000_PFU_PR8_2",
+                           "C_3_×_10^6_CFU_Pseudomonas_vs_100_PFU_PR8_3_invert",
+                           "C_3_×_10^6_CFU_Pseudomonas_vs_100_PFU_PR8_1",
                            "A_1000_PFU_PR8_vs_100_PFU_PR8_2_invert",
-                           "B_10^6_CFU_Pseudomonas_vs_1000_PFU_PR8_3_invert",
-                           "B_10^6_CFU_Pseudomonas_vs_1000_PFU_PR8_1",
-                           "C_10^6_CFU_Pseudomonas_vs_100_PFU_PR8_2_invert",
+                           "B_3_×_10^6_CFU_Pseudomonas_vs_1000_PFU_PR8_3_invert",
+                           "B_3_×_10^6_CFU_Pseudomonas_vs_1000_PFU_PR8_1",
+                           "C_3_×_10^6_CFU_Pseudomonas_vs_100_PFU_PR8_2_invert",
                            "A_1000_PFU_PR8_vs_100_PFU_PR8_3")) %>%
   clean_data() %>% 
   mutate_at(vars(-matches("Gene_names")), list(~log2)) %>% 
@@ -1228,7 +1239,7 @@ Then we generated a PCA analysis to look at the protein abundance pattern.
 set.seed(2018)
 pca_matrix_201712 <-
   data_201712_stat %>%
-  as_data_frame() %>%
+  as_tibble() %>%
   dplyr::select(matches("_1|_2|_3")) %>%
   as.matrix %>%
   princomp(., cor = T)
@@ -1238,7 +1249,7 @@ pca_matrix_pov_201712 <- pca_matrix_201712$sdev^2/sum(pca_matrix_201712$sdev^2)
 pca_df_201712 <- pca_matrix_201712$loadings[] %>%
   as.data.frame %>%
   mutate(Sample = row.names(.)) %>%
-  mutate(Categories = str_extract(Sample, "(?<=[A-Z]{1}_).+(?=_[0-9]{1})")) %>%
+  mutate(Categories = str_extract(Sample, "(?<=[A-Z]{1}_).+(?=_[0-9]{1})") %>% str_replace_all("_", " ")) %>%
   mutate(Batch = str_extract(Sample, "[0-9]{1}$"))
 
 ggplot(pca_df_201712, aes(Comp.1, Comp.2, color = Categories)) +
@@ -1260,7 +1271,8 @@ Lastly, a heatmap for all proteins with different abundance detected in at least
 ```{r heatmap-data-preparation}
 data_201712_heatmap_ha_df <-
   data.frame(type = colnames(data_201712 %>% dplyr::select(-matches("valid|Gene")))) %>%
-  mutate(Comparision = str_extract(type, "(?<=[ABC]_).+(?=_[0-9]{1}$)")) %>%
+  mutate(Comparision = str_extract(type, "(?<=[ABC]_).+(?=_[0-9]{1}$)") %>% 
+           str_replace_all("_", " ")) %>%
   dplyr::select(-type)
 
 data_201712_heatmap_ha <-
@@ -1368,7 +1380,61 @@ for (an in colnames(data_201712_heatmap_ha_df)) {
 
 ## State of the machine
 
-```{r}
-sessionInfo()
+```
+## sessionInfo()
+## R version 3.5.1 (2018-07-02)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 17763)
+## 
+## Matrix products: default
+## 
+## locale:
+## [1] LC_COLLATE=English_Australia.1252  LC_CTYPE=English_Australia.1252   
+## [3] LC_MONETARY=English_Australia.1252 LC_NUMERIC=C                      
+## [5] LC_TIME=English_Australia.1252    
+## 
+## attached base packages:
+##  [1] parallel  stats4    grid      stats     graphics  grDevices utils    
+##  [8] datasets  methods   base     
+## 
+## other attached packages:
+##  [1] blogdown_0.12         ggpubr_0.2            corrplot_0.84        
+##  [4] scatterpie_0.1.2      ggthemr_1.1.0         org.Mm.eg.db_3.7.0   
+##  [7] AnnotationDbi_1.44.0  IRanges_2.16.0        S4Vectors_0.20.1     
+## [10] Biobase_2.42.0        BiocGenerics_0.28.0   customLayout_0.3.0   
+## [13] glue_1.3.1            ggalluvial_0.9.1      RColorBrewer_1.1-2   
+## [16] egg_0.4.2             cowplot_0.9.4         data.table_1.12.2    
+## [19] factoextra_1.0.5      gridExtra_2.3         ComplexHeatmap_1.20.0
+## [22] eulerr_5.1.0          ggthemes_4.2.0        ggrepel_0.8.1        
+## [25] magrittr_1.5          forcats_0.4.0         stringr_1.4.0        
+## [28] dplyr_0.8.0.1         purrr_0.3.2           readr_1.3.1          
+## [31] tidyr_0.8.3           tibble_2.1.1          ggplot2_3.1.1        
+## [34] tidyverse_1.2.1      
+## 
+## loaded via a namespace (and not attached):
+##  [1] nlme_3.1-137        fs_1.3.1            lubridate_1.7.4    
+##  [4] bit64_0.9-7         httr_1.4.0          tools_3.5.1        
+##  [7] backports_1.1.4     R6_2.4.0            DBI_1.0.0          
+## [10] lazyeval_0.2.2      colorspace_1.4-1    GetoptLong_0.1.7   
+## [13] withr_2.1.2         processx_3.3.1      tidyselect_0.2.5   
+## [16] bit_1.1-14          compiler_3.5.1      cli_1.1.0          
+## [19] rvest_0.3.3         pacman_0.5.1        xml2_1.2.0         
+## [22] bookdown_0.10       labeling_0.3        scales_1.0.0       
+## [25] callr_3.2.0         digest_0.6.18       rmarkdown_1.12     
+## [28] pkgconfig_2.0.2     htmltools_0.3.6     rlang_0.3.4        
+## [31] GlobalOptions_0.1.0 readxl_1.3.1        rstudioapi_0.10    
+## [34] RSQLite_2.1.1       shape_1.4.4         generics_0.0.2     
+## [37] farver_1.1.0        jsonlite_1.6        Rcpp_1.0.1         
+## [40] munsell_0.5.0       clipr_0.6.0         whisker_0.3-2      
+## [43] stringi_1.4.3       yaml_2.2.0          MASS_7.3-50        
+## [46] plyr_1.8.4          blob_1.1.1          crayon_1.3.4       
+## [49] lattice_0.20-35     haven_2.1.0         circlize_0.4.6     
+## [52] hms_0.4.2           polylabelr_0.1.0    ps_1.3.0           
+## [55] knitr_1.22          pillar_1.4.0        rjson_0.2.20       
+## [58] reprex_0.2.1        evaluate_0.13       modelr_0.1.4       
+## [61] tweenr_1.0.1        cellranger_1.1.0    gtable_0.3.0       
+## [64] polyclip_1.10-0     assertthat_0.2.1    xfun_0.6           
+## [67] ggforce_0.2.2       broom_0.5.2         rvcheck_0.1.3      
+## [70] memoise_1.1.0         
 ```
 

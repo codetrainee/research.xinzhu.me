@@ -1,0 +1,109 @@
+Package	Version	Attached
+blogdown	0.12	attached
+ggpubr	0.2	attached
+corrplot	0.84	attached
+scatterpie	0.1.2	attached
+ggthemr	1.1.0	attached
+org.Mm.eg.db	3.7.0	attached
+AnnotationDbi	1.44.0	attached
+IRanges	2.16.0	attached
+S4Vectors	0.20.1	attached
+Biobase	2.42.0	attached
+BiocGenerics	0.28.0	attached
+customLayout	0.3.0	attached
+glue	1.3.1	attached
+ggalluvial	0.9.1	attached
+RColorBrewer	1.1-2	attached
+egg	0.4.2	attached
+cowplot	0.9.4	attached
+data.table	1.12.2	attached
+factoextra	1.0.5	attached
+gridExtra	2.3	attached
+ComplexHeatmap	1.20.0	attached
+eulerr	5.1.0	attached
+ggthemes	4.2.0	attached
+ggrepel	0.8.1	attached
+magrittr	1.5	attached
+forcats	0.4.0	attached
+stringr	1.4.0	attached
+dplyr	0.8.0.1	attached
+purrr	0.3.2	attached
+readr	1.3.1	attached
+tidyr	0.8.3	attached
+tibble	2.1.1	attached
+ggplot2	3.1.1	attached
+tidyverse	1.2.1	attached
+nlme	3.1-137	attached via Namespace
+fs	1.3.1	attached via Namespace
+lubridate	1.7.4	attached via Namespace
+bit64	0.9-7	attached via Namespace
+httr	1.4.0	attached via Namespace
+tools	3.5.1	attached via Namespace
+backports	1.1.4	attached via Namespace
+utf8	1.1.4	attached via Namespace
+R6	2.4.0	attached via Namespace
+DBI	1.0.0	attached via Namespace
+lazyeval	0.2.2	attached via Namespace
+colorspace	1.4-1	attached via Namespace
+GetoptLong	0.1.7	attached via Namespace
+withr	2.1.2	attached via Namespace
+processx	3.3.1	attached via Namespace
+tidyselect	0.2.5	attached via Namespace
+bit	1.1-14	attached via Namespace
+compiler	3.5.1	attached via Namespace
+cli	1.1.0	attached via Namespace
+rvest	0.3.3	attached via Namespace
+pacman	0.5.1	attached via Namespace
+xml2	1.2.0	attached via Namespace
+bookdown	0.10	attached via Namespace
+labeling	0.3	attached via Namespace
+scales	1.0.0	attached via Namespace
+callr	3.2.0	attached via Namespace
+digest	0.6.18	attached via Namespace
+rmarkdown	1.12	attached via Namespace
+pkgconfig	2.0.2	attached via Namespace
+htmltools	0.3.6	attached via Namespace
+rlang	0.3.4	attached via Namespace
+GlobalOptions	0.1.0	attached via Namespace
+readxl	1.3.1	attached via Namespace
+rstudioapi	0.10	attached via Namespace
+RSQLite	2.1.1	attached via Namespace
+shape	1.4.4	attached via Namespace
+generics	0.0.2	attached via Namespace
+farver	1.1.0	attached via Namespace
+jsonlite	1.6	attached via Namespace
+fansi	0.4.0	attached via Namespace
+Rcpp	1.0.1	attached via Namespace
+munsell	0.5.0	attached via Namespace
+clipr	0.6.0	attached via Namespace
+whisker	0.3-2	attached via Namespace
+stringi	1.4.3	attached via Namespace
+yaml	2.2.0	attached via Namespace
+MASS	7.3-50	attached via Namespace
+plyr	1.8.4	attached via Namespace
+blob	1.1.1	attached via Namespace
+crayon	1.3.4	attached via Namespace
+lattice	0.20-35	attached via Namespace
+haven	2.1.0	attached via Namespace
+circlize	0.4.6	attached via Namespace
+hms	0.4.2	attached via Namespace
+polylabelr	0.1.0	attached via Namespace
+zeallot	0.1.0	attached via Namespace
+ps	1.3.0	attached via Namespace
+knitr	1.22	attached via Namespace
+pillar	1.4.0	attached via Namespace
+rjson	0.2.20	attached via Namespace
+reprex	0.2.1	attached via Namespace
+evaluate	0.13	attached via Namespace
+modelr	0.1.4	attached via Namespace
+vctrs	0.1.0	attached via Namespace
+tweenr	1.0.1	attached via Namespace
+cellranger	1.1.0	attached via Namespace
+gtable	0.3.0	attached via Namespace
+polyclip	1.10-0	attached via Namespace
+assertthat	0.2.1	attached via Namespace
+xfun	0.6	attached via Namespace
+ggforce	0.2.2	attached via Namespace
+broom	0.5.2	attached via Namespace
+rvcheck	0.1.3	attached via Namespace
+memoise	1.1.0	attached via Namespace
