@@ -171,7 +171,7 @@ data_dec_stat <- remove_invalid(data_dec)
 Proteins passed the filtering step were subjected to statistics tests for difference analysis. A protein with a fold change greater than 2 and p value less than 0.05 in at least one comparison group was considered as a significant one in protein abundance change.
 With all data cleaned and processed, visualization was the next step to clearly illustrate the proteomics profiles.
 
-An additional comparison between 1000 pfu PR8 blood vs PBS control blood neutrophils was also calculated *in silico* using the equation \[\frac{1000 \: pfu \: PR8 \: blood}{PBS \: blood} = \frac{1000 \: pfu \: PR8 \: blood}{1000 \: pfu \: PR8 BM}  \times \frac{1000 \: pfu \: PR8 \: BM}{PBS \: blood}\] where \(\frac{1000 \: pfu \: PR8 \: blood}{1000 \: pfu \: PR8 \: BM}\) is a sample comparison obtained from Experiment 1 and \(\frac{1000 \: pfu \: PR8 \: BM}{PBS \: blood}\) is a sample comparison obtained from Experiment 2.
+An additional comparison between 1000 pfu PR8 blood vs PBS control blood neutrophils was also calculated *in silico* using the equation $$\frac{1000 \: pfu \: PR8 \: blood}{PBS \: blood} = \frac{1000 \: pfu \: PR8 \: blood}{1000 \: pfu \: PR8 BM}  \times \frac{1000 \: pfu \: PR8 \: BM}{PBS \: blood}$$ where $\frac{1000 \: pfu \: PR8 \: blood}{1000 \: pfu \: PR8 \: BM}$ is a sample comparison obtained from Experiment 1 and $\frac{1000 \: pfu \: PR8 \: BM}{PBS \: blood}$ is a sample comparison obtained from Experiment 2.
 
 ```{r combine-two-exp-and-apply-statistics-test}
 ## combine two experiments
