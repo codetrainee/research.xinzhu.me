@@ -11,3 +11,7 @@ th, td {
   text-align: left;
   border: 1px solid;
 }
+
+.c-post__body *+* {
+  margin-top: 0%
+}
